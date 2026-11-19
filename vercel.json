@@ -1,4 +1,3 @@
 { "functions": {
-"api/health.js":{"maxDuration":10}, "api/invoke.js":{"maxDuration":10},
-"api/agenton-health.js":{"maxDuration":10}, "api/chat.js":{"maxDuration":10}
+"api/health.js":{"maxDuration":10}, "api/invoke.js":{"maxDuration":10}
 } }
