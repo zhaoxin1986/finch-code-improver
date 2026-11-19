@@ -16,3 +16,21 @@ const sig="v1="+hmacHex(requestSecretBytes,canon({method,pathWithQuery,timestamp
 return{"X-Agent-Key-Id":keyId,"X-Agent-Timestamp":ts,"X-Agent-Nonce":nc,"X-Agent-Signature":sig};
 }
 export function readRawBody(req){return new Promise((res,rej)=>{const c=[];req.on("data",x=>c.push(x));req.on("end",()=>res(Buffer.concat(c)));req.on("error",rej);});}
+
+// TEMP diagnostic: find which canonicalization variant matches an incoming signature
+export function diagnoseSignature({method,pathWithQuery,rawBody,headers,secretRaw}){
+const sg=headers["x-platform-signature"],ts=headers["x-platform-timestamp"],nc=headers["x-platform-nonce"]||"";
+if(!sg||!ts)return "no_signature";
+const pathOnly=(pathWithQuery||"").split("?")[0];
+const secrets=[["b64url",Buffer.from(secretRaw||"","base64url")],["utf8",Buffer.from(secretRaw||"","utf8")]];
+const bodies=[["sha256hex",sha256Hex(rawBody)],["sha256b64",crypto.createHash("sha256").update(rawBody).digest("base64")],["raw",rawBody.toString("utf8")]];
+const paths=[["full",pathWithQuery],["pathOnly",pathOnly],["empty",""]];
+const methods=[["method",method],["lower",method.toLowerCase()],["upper",method.toUpperCase()]];
+for(const [sn,sb] of secrets)for(const [bn,bh] of bodies)for(const [pn,pv] of paths)for(const [mn,mv] of methods){
+  const msg=[mv,pv,ts,nc,bh].join("\n");
+  const sig="v1="+hmacHex(sb,msg);
+  if(sig===sg)return `${sn}/${bn}/${pn}/${mn}/prefix`;
+  if(sig.slice(3)===sg)return `${sn}/${bn}/${pn}/${mn}/noprefix`;
+}
+return "no_variant_matched";
+}
