@@ -57,3 +57,31 @@ for(const [kn,k] of keys){
 }
 return "no_variant_matched";
 }
+
+// TEMP diagnostic v3: template matrix + secret fingerprint
+export function diagnoseSignature3({method,pathWithQuery,rawBody,headers,secretRaw,altSecretRaw,host}){
+const sg=headers["x-platform-signature"],ts=headers["x-platform-timestamp"],nc=headers["x-platform-nonce"]||"",kid=headers["x-platform-key-id"]||"";
+const fp=(v)=>{const s=v||"";return{len:s.length,ws:/\s/.test(s),charset:/^[A-Za-z0-9_-]+$/.test(s)?"b64url":(/^[A-Za-z0-9+/=]+$/.test(s)?"b64":(/^[0-9a-f]+$/i.test(s)?"hex":"other"))}};
+const out={fpReq:fp(secretRaw),fpCb:fp(altSecretRaw)};
+if(!sg||!ts){out.match="no_signature";return out;}
+const pathOnly=(pathWithQuery||"").split("?")[0];
+const full="https://"+(host||"")+pathOnly;
+const keys=[["req:raw",Buffer.from(secretRaw||"","utf8")],["req:b64url",Buffer.from(secretRaw||"","base64url")],["req:b64",Buffer.from(secretRaw||"","base64")],["req:hex",Buffer.from(secretRaw||"","hex")],["cb:raw",Buffer.from(altSecretRaw||"","utf8")],["cb:b64url",Buffer.from(altSecretRaw||"","base64url")]];
+const bh=sha256Hex(rawBody);
+const parts={m:method,p:pathOnly,u:full,t:ts,n:nc,b:bh,k:kid};
+const templates=[
+ ["m,p,t,n,b","\n"],["m p t n b"," "],["t,n,b","\n"],["t.n.b","."],["m,p,b,t,n","\n"],
+ ["m,p,t,n","\n"],["t,n","\n"],["m,p,t,n,b","|"],["m,p,t,n,b",""],["u,t,n,b","\n"],["m,u,t,n,b","\n"]
+];
+for(const [kn,k] of keys){
+  if(!k.length)continue;
+  for(const [tpl,sep] of templates){
+    const msg=tpl.split(",").map(x=>parts[x]).join(sep);
+    const sig="v1="+hmacHex(k,msg);
+    if(sig===sg){out.match=kn+"|"+tpl+"|"+JSON.stringify(sep);return out;}
+    if(sig.slice(3)===sg){out.match=kn+"|"+tpl+"|"+JSON.stringify(sep)+"|noprefix";return out;}
+  }
+}
+out.match="no_variant_matched";
+return out;
+}

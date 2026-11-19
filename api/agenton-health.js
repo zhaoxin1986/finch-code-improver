@@ -1,4 +1,4 @@
-import { verifyIncomingSignature, signOutgoingResponse, readRawBody, diagnoseSignature2 } from "./_lib/hmac.js";
+import { verifyIncomingSignature, signOutgoingResponse, readRawBody, diagnoseSignature3 } from "./_lib/hmac.js";
 export const config={api:{bodyParser:false}};
 export default async function handler(req,res){
 if(req.method!=="GET"){res.status(405).end();return;}
@@ -7,7 +7,7 @@ if(!process.env.FINCH_V2_REQUEST_SECRET||!kid){res.status(500).json({error:"serv
 const raw=await readRawBody(req);
 const v=verifyIncomingSignature({method:"GET",pathWithQuery:req.url,rawBody:raw,headers:req.headers,requestSecretBytes:s});
 console.log(JSON.stringify({stage:"agenton-health",kid:req.headers["x-platform-key-id"]||null,ts:req.headers["x-platform-timestamp"]||null,ok:v.ok,reason:v.reason||null}));
-if(!v.ok){console.log(JSON.stringify({stage:"agenton-health-diag",variant:diagnoseSignature2({method:"GET",pathWithQuery:req.url,rawBody:raw,headers:req.headers,secretRaw:process.env.FINCH_V2_REQUEST_SECRET,altSecretRaw:process.env.FINCH_V2_CALLBACK_SECRET}),sig:req.headers["x-platform-signature"],nonce:req.headers["x-platform-nonce"],rawLen:raw.length}));res.status(401).json({error:"invalid_signature",reason:v.reason});return;}
+if(!v.ok){console.log(JSON.stringify({stage:"agenton-health-diag",variant:diagnoseSignature3({method:"GET",pathWithQuery:req.url,rawBody:raw,headers:req.headers,secretRaw:process.env.FINCH_V2_REQUEST_SECRET,altSecretRaw:process.env.FINCH_V2_CALLBACK_SECRET,host:req.headers.host}),sig:req.headers["x-platform-signature"],nonce:req.headers["x-platform-nonce"],rawLen:raw.length}));res.status(401).json({error:"invalid_signature",reason:v.reason});return;}
 const body=Buffer.from(JSON.stringify({status:"ready"}));
 const h=signOutgoingResponse({method:"GET",pathWithQuery:req.url,responseBodyBytes:body,requestSecretBytes:s,keyId:kid});
 res.writeHead(200,{"Content-Type":"application/json",...h});res.end(body);
